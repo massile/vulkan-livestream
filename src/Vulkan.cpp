@@ -94,6 +94,8 @@ void Vulkan::init()
 	createSwapchain();
 	createCommandBuffers();
 	recordDrawCommand();
+
+	createRenderPass();
 }
 
 void Vulkan::draw()
@@ -248,10 +250,45 @@ void Vulkan::recordDrawCommand()
 	}
 }
 
+void Vulkan::createRenderPass()
+{
+	VkAttachmentDescription attachmentDescription = {};
+	attachmentDescription.format = surfaceFormat.format;
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+	attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	
+	VkAttachmentReference colorAttachment = {};
+	colorAttachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subPassDescription = {};
+	subPassDescription.colorAttachmentCount = 1;
+	subPassDescription.pColorAttachments = &colorAttachment;
+	subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &attachmentDescription;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subPassDescription;
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+
+	VkResult res = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+	assert(res == VK_SUCCESS);
+}
+
 Vulkan::~Vulkan()
 {
+	vkDeviceWaitIdle(device);
+	vkDestroySemaphore(device, imageIsAvailable, nullptr);
+	vkDestroySemaphore(device, imageIsRendered, nullptr);
 	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
+	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
 }

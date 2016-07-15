@@ -16,6 +16,7 @@ private:
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> graphicsCommandBuffers;
 
+	VkRenderPass renderPass;
 	VkSemaphore imageIsAvailable;
 	VkSemaphore imageIsRendered;
 
@@ -39,4 +40,5 @@ private:
 	void createSwapchain();
 	void createCommandBuffers();
 	void recordDrawCommand();
+	void createRenderPass();
 };
