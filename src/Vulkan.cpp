@@ -8,6 +8,11 @@ Vulkan::Vulkan()
 {
 	createInstance();
 	createDevice();
+
+	VkSemaphoreCreateInfo semaphoreInfo = {};
+	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageIsAvailable);
+	vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageIsRendered);
 }
 
 void Vulkan::createInstance()
@@ -62,6 +67,8 @@ void Vulkan::createDevice()
 
 	VkResult res = vkCreateDevice(physicalDevice, &deviceInfo, nullptr, &device);
 	assert(res == VK_SUCCESS);
+
+	vkGetDeviceQueue(device, queueInfo.queueFamilyIndex, 0, &graphicsQueue);
 }
 
 uint32_t Vulkan::chooseQueueFamilyIndex()
@@ -87,6 +94,38 @@ void Vulkan::init()
 	createSwapchain();
 	createCommandBuffers();
 	recordDrawCommand();
+}
+
+void Vulkan::draw()
+{
+	// Get next image in swapchain
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageIsAvailable, 0, &imageIndex);
+
+	VkPipelineShaderStageCreateFlags waitDstStageMsk = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkSubmitInfo submitInfo = {};
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &graphicsCommandBuffers[imageIndex]; // We want to send on the ith swapchain
+	submitInfo.pWaitDstStageMask = &waitDstStageMsk;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &imageIsAvailable;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &imageIsRendered;
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	// Sends the draw command to the GPU (draws in the buffers)
+	vkQueueSubmit(graphicsQueue, 1, &submitInfo, 0);
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.pImageIndices = &imageIndex;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &swapchain;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &imageIsRendered;
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+	// Present the buffer's content to the screen (surface)
+	vkQueuePresentKHR(graphicsQueue, &presentInfo);
 }
 
 void Vulkan::createSwapchain()

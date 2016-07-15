@@ -16,7 +16,11 @@ private:
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> graphicsCommandBuffers;
 
+	VkSemaphore imageIsAvailable;
+	VkSemaphore imageIsRendered;
+
 	uint32_t graphicsFamilyIndex = -1;
+	VkQueue graphicsQueue;
 
 public:
 	static Vulkan app;
@@ -26,6 +30,7 @@ public:
 	
 	void createSurface(GLFWwindow* window);
 	void init();
+	void draw();
 
 private:
 	void createInstance();

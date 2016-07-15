@@ -22,4 +22,5 @@ bool Window::shouldClose()
 void Window::clear()
 {
 	glfwPollEvents();
+	Vulkan::app.draw();
 }
