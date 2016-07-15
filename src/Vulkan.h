@@ -33,4 +33,5 @@ private:
 	uint32_t chooseQueueFamilyIndex();
 	void createSwapchain();
 	void createCommandBuffers();
+	void recordDrawCommand();
 };

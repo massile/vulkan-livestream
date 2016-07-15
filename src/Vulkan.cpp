@@ -82,6 +82,7 @@ void Vulkan::init()
 {
 	createSwapchain();
 	createCommandBuffers();
+	recordDrawCommand();
 }
 
 void Vulkan::createSwapchain()
@@ -150,6 +151,58 @@ void Vulkan::createCommandBuffers()
 	graphicsCommandBuffers.resize(swapchainImages.size());
 	res = vkAllocateCommandBuffers(device, &bufferAllocInfo, graphicsCommandBuffers.data());
 	assert(res == VK_SUCCESS);
+}
+
+void Vulkan::recordDrawCommand()
+{
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+	VkImageSubresourceRange subResourceRange = {};
+	subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subResourceRange.baseArrayLayer = 0;
+	subResourceRange.layerCount = 1;
+	subResourceRange.baseMipLevel = 0;
+	subResourceRange.levelCount = 1;
+
+	// To change image layout
+	VkImageMemoryBarrier barrierFromPresentToClear = {};
+	barrierFromPresentToClear.subresourceRange = subResourceRange;
+	barrierFromPresentToClear.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	barrierFromPresentToClear.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	barrierFromPresentToClear.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrierFromPresentToClear.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrierFromPresentToClear.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+
+	
+	VkImageMemoryBarrier barrierFromClearToPresent = {};
+	barrierFromClearToPresent.subresourceRange = subResourceRange;
+	barrierFromClearToPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrierFromClearToPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	barrierFromClearToPresent.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+	barrierFromClearToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrierFromClearToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+
+	VkClearColorValue clearColor = {
+		{0.0f, 0.0f, 0.0f, 1.0f}
+	};
+
+	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
+		barrierFromClearToPresent.image = swapchainImages[i];
+		barrierFromPresentToClear.image = swapchainImages[i];
+
+		vkBeginCommandBuffer(graphicsCommandBuffers[i], &beginInfo);
+		vkCmdPipelineBarrier(graphicsCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrierFromPresentToClear);
+
+		vkCmdClearColorImage(graphicsCommandBuffers[i], swapchainImages[i],
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &subResourceRange);
+		
+		vkCmdPipelineBarrier(graphicsCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT,
+			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrierFromClearToPresent);
+		vkEndCommandBuffer(graphicsCommandBuffers[i]);
+	}
 }
 
 Vulkan::~Vulkan()
