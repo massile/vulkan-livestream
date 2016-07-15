@@ -2,6 +2,7 @@
 
 #include <vulkan\vulkan.h>
 #include <vector>
+#include <GLFW\glfw3.h>
 
 class Vulkan
 {
@@ -9,6 +10,8 @@ private:
 	VkInstance instance;
 	VkPhysicalDevice physicalDevice;
 	VkDevice device;
+	VkSurfaceKHR surface;
+	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 
 	uint32_t graphicsFamilyIndex = -1;
 
@@ -17,9 +20,13 @@ public:
 
 	Vulkan();
 	virtual ~Vulkan();
+	
+	void createSurface(GLFWwindow* window);
+	void init();
 
 private:
 	void createInstance();
 	void createDevice();
 	uint32_t chooseQueueFamilyIndex();
+	void createSwapchain();
 };

@@ -10,11 +10,6 @@ Vulkan::Vulkan()
 	createDevice();
 }
 
-Vulkan::~Vulkan()
-{
-	vkDestroyInstance(instance, nullptr);
-}
-
 void Vulkan::createInstance()
 {
 	VkApplicationInfo appInfo = {};
@@ -81,4 +76,58 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 	}
 
 	return graphicsFamilyIndex;
+}
+
+void Vulkan::init()
+{
+	createSwapchain();
+}
+
+void Vulkan::createSwapchain()
+{
+	VkSurfaceCapabilitiesKHR surfaceCapabilities;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
+
+	uint32_t formatsCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatsCount, nullptr);
+	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatsCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatsCount, surfaceFormats.data());
+
+	uint32_t presentModesCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModesCount, nullptr);
+	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModesCount, presentModes.data());
+	
+	VkSwapchainCreateInfoKHR swapchainInfo = {};
+	swapchainInfo.clipped = true;
+	swapchainInfo.imageArrayLayers = 1;
+	swapchainInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	swapchainInfo.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	swapchainInfo.queueFamilyIndexCount = 1;
+	swapchainInfo.pQueueFamilyIndices = &graphicsFamilyIndex;
+	swapchainInfo.surface = surface;
+	swapchainInfo.imageFormat = surfaceFormats[0].format; // TODO: Choose a better one
+	swapchainInfo.imageColorSpace = surfaceFormats[0].colorSpace; // TODO: Choose a better one
+	swapchainInfo.imageExtent = surfaceCapabilities.currentExtent;
+	swapchainInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
+	swapchainInfo.presentMode = presentModes[0]; // TODO : Choose a better one
+	swapchainInfo.preTransform = surfaceCapabilities.currentTransform;
+	swapchainInfo.oldSwapchain = swapchain;
+	swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+
+	VkResult res = vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &swapchain);
+	assert(res == VK_SUCCESS);
+}
+
+void Vulkan::createSurface(GLFWwindow* window)
+{
+	glfwCreateWindowSurface(instance, window, nullptr, &surface);
+}
+
+Vulkan::~Vulkan()
+{
+	vkDestroySwapchainKHR(device, swapchain, nullptr);
+	vkDestroyDevice(device, nullptr);
+	vkDestroyInstance(instance, nullptr);
 }
