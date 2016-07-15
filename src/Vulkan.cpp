@@ -1,6 +1,7 @@
 #include "Vulkan.h"
 #include <iostream>
 #include <assert.h>
+#include <fstream>
 
 Vulkan Vulkan::app;
 
@@ -96,6 +97,7 @@ void Vulkan::init()
 	recordDrawCommand();
 
 	createRenderPass();
+	createGraphicsPipeline();
 }
 
 void Vulkan::draw()
@@ -140,6 +142,8 @@ void Vulkan::createSwapchain()
 	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatsCount);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatsCount, surfaceFormats.data());
 
+	this->surfaceFormat = surfaceFormats[0];
+
 	uint32_t presentModesCount;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModesCount, nullptr);
 	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
@@ -163,6 +167,7 @@ void Vulkan::createSwapchain()
 	swapchainInfo.oldSwapchain = swapchain;
 	swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 
+	surfaceExtent = swapchainInfo.imageExtent;
 	VkResult res = vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &swapchain);
 	assert(res == VK_SUCCESS);
 
@@ -278,6 +283,90 @@ void Vulkan::createRenderPass()
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 
 	VkResult res = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+	assert(res == VK_SUCCESS);
+}
+
+void Vulkan::createGraphicsPipeline()
+{
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+	VkPipelineLayout pipelineLayout;
+	vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.colorWriteMask = 0xF;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+	VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+	colorBlendState.attachmentCount = 1;
+	colorBlendState.pAttachments = &colorBlendAttachment;
+	colorBlendState.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendState.blendConstants[0] = 0.0f;
+	colorBlendState.blendConstants[1] = 0.0f;
+	colorBlendState.blendConstants[2] = 0.0f;
+	colorBlendState.blendConstants[3] = 0.0f;
+	colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+
+	VkPipelineMultisampleStateCreateInfo multisampleState = {};
+	multisampleState.minSampleShading = 1.0f;
+	multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+	rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationState.lineWidth = 1.0f;
+	rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+
+	// TODO: Add vertex attributes, vertices will be defined in shader for now
+	VkPipelineVertexInputStateCreateInfo vertexInput = {};
+	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+	VkViewport viewport;
+	viewport.height = surfaceExtent.height;
+	viewport.width = surfaceExtent.width;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+
+	VkRect2D scissor;
+	scissor.extent = surfaceExtent;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.viewportCount = 1;
+	viewportState.pViewports = &viewport;
+	viewportState.scissorCount = 1;
+	viewportState.pScissors = &scissor;
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineInfo = {};
+	graphicsPipelineInfo.basePipelineIndex = -1;
+	graphicsPipelineInfo.subpass = 0;
+	graphicsPipelineInfo.renderPass = renderPass;
+	graphicsPipelineInfo.layout = pipelineLayout;
+	graphicsPipelineInfo.pColorBlendState = &colorBlendState;
+	graphicsPipelineInfo.pInputAssemblyState = &inputAssembly;
+	graphicsPipelineInfo.pMultisampleState = &multisampleState;
+	graphicsPipelineInfo.pRasterizationState = &rasterizationState;
+	graphicsPipelineInfo.pVertexInputState = &vertexInput;
+	graphicsPipelineInfo.pViewportState = &viewportState;
+	graphicsPipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+
+	VkResult res = vkCreateGraphicsPipelines(device, 0, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline);
 	assert(res == VK_SUCCESS);
 }
 
