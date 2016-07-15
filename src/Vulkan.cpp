@@ -19,11 +19,15 @@ void Vulkan::createInstance()
 
 	// These extensions are required to display something on the screen
 	const char* extensions[] = { "VK_KHR_surface", "VK_KHR_win32_surface" };
+	// For debugging
+	const char* layers[] = {"VK_LAYER_LUNARG_standard_validation"};
 
 	VkInstanceCreateInfo instanceInfo = {};
 	instanceInfo.enabledExtensionCount = 2;
 	instanceInfo.ppEnabledExtensionNames = extensions;
 	instanceInfo.pApplicationInfo = &appInfo;
+	instanceInfo.enabledLayerCount = 1;
+	instanceInfo.ppEnabledLayerNames = layers;
 	instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 
 	VkResult res = vkCreateInstance(&instanceInfo, nullptr, &instance);
