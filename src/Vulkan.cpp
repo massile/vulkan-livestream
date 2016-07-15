@@ -81,6 +81,7 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 void Vulkan::init()
 {
 	createSwapchain();
+	createCommandBuffers();
 }
 
 void Vulkan::createSwapchain()
@@ -118,6 +119,11 @@ void Vulkan::createSwapchain()
 
 	VkResult res = vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &swapchain);
 	assert(res == VK_SUCCESS);
+
+	uint32_t swapchainImageCount;
+	vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
+	swapchainImages.resize(swapchainImageCount);
+	vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
 }
 
 void Vulkan::createSurface(GLFWwindow* window)
@@ -125,8 +131,30 @@ void Vulkan::createSurface(GLFWwindow* window)
 	glfwCreateWindowSurface(instance, window, nullptr, &surface);
 }
 
+void Vulkan::createCommandBuffers()
+{
+	VkCommandPoolCreateInfo commandPoolInfo = {};
+	commandPoolInfo.queueFamilyIndex = graphicsFamilyIndex;
+	commandPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	VkResult res = vkCreateCommandPool(device, &commandPoolInfo, nullptr, &commandPool);
+	assert(res == VK_SUCCESS);
+
+	// One buffer per image on the swapchain
+
+	VkCommandBufferAllocateInfo bufferAllocInfo = {};
+	bufferAllocInfo.commandBufferCount = swapchainImages.size();
+	bufferAllocInfo.commandPool = commandPool;
+	bufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	bufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+
+	graphicsCommandBuffers.resize(swapchainImages.size());
+	res = vkAllocateCommandBuffers(device, &bufferAllocInfo, graphicsCommandBuffers.data());
+	assert(res == VK_SUCCESS);
+}
+
 Vulkan::~Vulkan()
 {
+	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);

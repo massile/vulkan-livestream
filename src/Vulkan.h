@@ -12,6 +12,9 @@ private:
 	VkDevice device;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+	std::vector<VkImage> swapchainImages;
+	VkCommandPool commandPool;
+	std::vector<VkCommandBuffer> graphicsCommandBuffers;
 
 	uint32_t graphicsFamilyIndex = -1;
 
@@ -29,4 +32,5 @@ private:
 	void createDevice();
 	uint32_t chooseQueueFamilyIndex();
 	void createSwapchain();
+	void createCommandBuffers();
 };
