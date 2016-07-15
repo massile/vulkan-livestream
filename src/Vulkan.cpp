@@ -353,6 +353,11 @@ void Vulkan::createGraphicsPipeline()
 	viewportState.pScissors = &scissor;
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 
+	VkPipelineShaderStageCreateInfo shadersStages[] = {
+		createShaderStage("shaders/colorVert.spirv", VK_SHADER_STAGE_VERTEX_BIT),	// VERTEX SHADER
+		createShaderStage("shaders/colorFrag.spirv", VK_SHADER_STAGE_FRAGMENT_BIT),	// FRAGMENT SHADER
+	};
+
 	VkGraphicsPipelineCreateInfo graphicsPipelineInfo = {};
 	graphicsPipelineInfo.basePipelineIndex = -1;
 	graphicsPipelineInfo.subpass = 0;
@@ -364,10 +369,37 @@ void Vulkan::createGraphicsPipeline()
 	graphicsPipelineInfo.pRasterizationState = &rasterizationState;
 	graphicsPipelineInfo.pVertexInputState = &vertexInput;
 	graphicsPipelineInfo.pViewportState = &viewportState;
+	graphicsPipelineInfo.stageCount = 2;
+	graphicsPipelineInfo.pStages = shadersStages;
 	graphicsPipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 
 	VkResult res = vkCreateGraphicsPipelines(device, 0, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline);
 	assert(res == VK_SUCCESS);
+}
+
+VkPipelineShaderStageCreateInfo Vulkan::createShaderStage(const std::string& filename, VkShaderStageFlagBits shaderStage)
+{
+	std::ifstream file(filename, std::ios::binary);
+	file.seekg(0, std::ios::end);
+	std::vector<char> code(file.tellg());
+	file.seekg(0, std::ios::beg);
+	file.read(code.data(), code.size());
+
+	VkShaderModuleCreateInfo shaderModuleInfo = {};
+	shaderModuleInfo.codeSize = code.size();
+	shaderModuleInfo.pCode = (uint32_t*) code.data();
+	shaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+
+	VkShaderModule shaderModule;
+	vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &shaderModule);
+
+	VkPipelineShaderStageCreateInfo shaderStageInfo = {};
+	shaderStageInfo.module = shaderModule;
+	shaderStageInfo.pName = "main";
+	shaderStageInfo.stage = shaderStage;
+	shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+
+	return shaderStageInfo;
 }
 
 Vulkan::~Vulkan()
