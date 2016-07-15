@@ -98,6 +98,7 @@ void Vulkan::init()
 
 	createRenderPass();
 	createGraphicsPipeline();
+	createFrameBuffers();
 }
 
 void Vulkan::draw()
@@ -175,6 +176,37 @@ void Vulkan::createSwapchain()
 	vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
 	swapchainImages.resize(swapchainImageCount);
 	vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
+
+	createSwapchainImageViews();
+}
+
+void Vulkan::createSwapchainImageViews()
+{
+	swapchainImageViews.resize(swapchainImages.size());
+
+	VkImageSubresourceRange subResourceRange = {};
+	subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subResourceRange.baseArrayLayer = 0;
+	subResourceRange.baseMipLevel = 0;
+	subResourceRange.layerCount = 1;
+	subResourceRange.levelCount = 1;
+
+	VkImageViewCreateInfo imageViewInfo = {};
+	imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.format = surfaceFormat.format;
+	imageViewInfo.subresourceRange = subResourceRange;
+	imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+	VkResult res;
+	for (int i = 0; i < swapchainImageViews.size(); i++) {
+		imageViewInfo.image = swapchainImages[i];
+		res = vkCreateImageView(device, &imageViewInfo, nullptr, &swapchainImageViews[i]);
+		assert(res == VK_SUCCESS);
+	}
 }
 
 void Vulkan::createSurface(GLFWwindow* window)
@@ -400,6 +432,26 @@ VkPipelineShaderStageCreateInfo Vulkan::createShaderStage(const std::string& fil
 	shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 
 	return shaderStageInfo;
+}
+
+void Vulkan::createFrameBuffers()
+{
+	frameBuffers.resize(swapchainImages.size());
+
+	VkFramebufferCreateInfo frameBufferInfo = {};
+	frameBufferInfo.height = surfaceExtent.height;
+	frameBufferInfo.width = surfaceExtent.width;
+	frameBufferInfo.layers = 1;
+	frameBufferInfo.attachmentCount = 1;
+	frameBufferInfo.renderPass = renderPass;
+	frameBufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+
+	VkResult res;
+	for (int i = 0; i < swapchainImages.size(); i++) {
+		frameBufferInfo.pAttachments = &swapchainImageViews[i];
+		res = vkCreateFramebuffer(device, &frameBufferInfo, nullptr, &frameBuffers[i]);
+		assert(res == VK_SUCCESS);
+	}
 }
 
 Vulkan::~Vulkan()
