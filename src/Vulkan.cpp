@@ -93,12 +93,11 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 void Vulkan::init()
 {
 	createSwapchain();
+	createRenderPass();
+	createFrameBuffers();
+	createGraphicsPipeline();
 	createCommandBuffers();
 	recordDrawCommand();
-
-	createRenderPass();
-	createGraphicsPipeline();
-	createFrameBuffers();
 }
 
 void Vulkan::draw()
@@ -248,41 +247,30 @@ void Vulkan::recordDrawCommand()
 	subResourceRange.baseMipLevel = 0;
 	subResourceRange.levelCount = 1;
 
-	// To change image layout
-	VkImageMemoryBarrier barrierFromPresentToClear = {};
-	barrierFromPresentToClear.subresourceRange = subResourceRange;
-	barrierFromPresentToClear.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-	barrierFromPresentToClear.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	barrierFromPresentToClear.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrierFromPresentToClear.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	barrierFromPresentToClear.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-
-	
-	VkImageMemoryBarrier barrierFromClearToPresent = {};
-	barrierFromClearToPresent.subresourceRange = subResourceRange;
-	barrierFromClearToPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrierFromClearToPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	barrierFromClearToPresent.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-	barrierFromClearToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	barrierFromClearToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-
-	VkClearColorValue clearColor = {
+	VkClearValue clearColor = {
 		{0.0f, 0.0f, 0.0f, 1.0f}
 	};
 
+	// PIPELINE BARRIER NOT NEEDED IF THERE IS A RENDERPASS
+
+	VkRenderPassBeginInfo renderPassBegin = {};
+	renderPassBegin.clearValueCount = 1;
+	renderPassBegin.pClearValues = &clearColor;
+	renderPassBegin.renderArea.extent = surfaceExtent;
+	renderPassBegin.renderArea.offset = { 0, 0 };
+	renderPassBegin.renderPass = renderPass;
+	renderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+
 	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
-		barrierFromClearToPresent.image = swapchainImages[i];
-		barrierFromPresentToClear.image = swapchainImages[i];
+		renderPassBegin.framebuffer = frameBuffers[i];
 
 		vkBeginCommandBuffer(graphicsCommandBuffers[i], &beginInfo);
-		vkCmdPipelineBarrier(graphicsCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrierFromPresentToClear);
-
-		vkCmdClearColorImage(graphicsCommandBuffers[i], swapchainImages[i],
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &subResourceRange);
+		vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
 		
-		vkCmdPipelineBarrier(graphicsCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrierFromClearToPresent);
+		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		vkCmdDraw(graphicsCommandBuffers[i], 3, 1, 0, 0); // The vertices are defined in the shader
+
+		vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 		vkEndCommandBuffer(graphicsCommandBuffers[i]);
 	}
 }
@@ -457,6 +445,13 @@ void Vulkan::createFrameBuffers()
 Vulkan::~Vulkan()
 {
 	vkDeviceWaitIdle(device);
+	for (auto& frameBuffer : frameBuffers) {
+		vkDestroyFramebuffer(device, frameBuffer, nullptr);
+	}
+	for (auto& imageView : swapchainImageViews) {
+		vkDestroyImageView(device, imageView, nullptr);
+	}
+	vkDestroyRenderPass(device, renderPass, nullptr);
 	vkDestroySemaphore(device, imageIsAvailable, nullptr);
 	vkDestroySemaphore(device, imageIsRendered, nullptr);
 	vkDestroyCommandPool(device, commandPool, nullptr);
