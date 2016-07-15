@@ -1,6 +1,7 @@
 #include "Vulkan.h"
 #include <iostream>
 #include <assert.h>
+#include <fstream>
 
 Vulkan Vulkan::app;
 
@@ -92,6 +93,9 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 void Vulkan::init()
 {
 	createSwapchain();
+	createRenderPass();
+	createFrameBuffers();
+	createGraphicsPipeline();
 	createCommandBuffers();
 	recordDrawCommand();
 }
@@ -138,6 +142,8 @@ void Vulkan::createSwapchain()
 	std::vector<VkSurfaceFormatKHR> surfaceFormats(formatsCount);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatsCount, surfaceFormats.data());
 
+	this->surfaceFormat = surfaceFormats[0];
+
 	uint32_t presentModesCount;
 	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, &presentModesCount, nullptr);
 	std::vector<VkPresentModeKHR> presentModes(presentModesCount);
@@ -161,6 +167,7 @@ void Vulkan::createSwapchain()
 	swapchainInfo.oldSwapchain = swapchain;
 	swapchainInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 
+	surfaceExtent = swapchainInfo.imageExtent;
 	VkResult res = vkCreateSwapchainKHR(device, &swapchainInfo, nullptr, &swapchain);
 	assert(res == VK_SUCCESS);
 
@@ -168,6 +175,37 @@ void Vulkan::createSwapchain()
 	vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
 	swapchainImages.resize(swapchainImageCount);
 	vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
+
+	createSwapchainImageViews();
+}
+
+void Vulkan::createSwapchainImageViews()
+{
+	swapchainImageViews.resize(swapchainImages.size());
+
+	VkImageSubresourceRange subResourceRange = {};
+	subResourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subResourceRange.baseArrayLayer = 0;
+	subResourceRange.baseMipLevel = 0;
+	subResourceRange.layerCount = 1;
+	subResourceRange.levelCount = 1;
+
+	VkImageViewCreateInfo imageViewInfo = {};
+	imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewInfo.format = surfaceFormat.format;
+	imageViewInfo.subresourceRange = subResourceRange;
+	imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+	VkResult res;
+	for (int i = 0; i < swapchainImageViews.size(); i++) {
+		imageViewInfo.image = swapchainImages[i];
+		res = vkCreateImageView(device, &imageViewInfo, nullptr, &swapchainImageViews[i]);
+		assert(res == VK_SUCCESS);
+	}
 }
 
 void Vulkan::createSurface(GLFWwindow* window)
@@ -209,49 +247,216 @@ void Vulkan::recordDrawCommand()
 	subResourceRange.baseMipLevel = 0;
 	subResourceRange.levelCount = 1;
 
-	// To change image layout
-	VkImageMemoryBarrier barrierFromPresentToClear = {};
-	barrierFromPresentToClear.subresourceRange = subResourceRange;
-	barrierFromPresentToClear.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-	barrierFromPresentToClear.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	barrierFromPresentToClear.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrierFromPresentToClear.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	barrierFromPresentToClear.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-
-	
-	VkImageMemoryBarrier barrierFromClearToPresent = {};
-	barrierFromClearToPresent.subresourceRange = subResourceRange;
-	barrierFromClearToPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-	barrierFromClearToPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	barrierFromClearToPresent.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-	barrierFromClearToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	barrierFromClearToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-
-	VkClearColorValue clearColor = {
+	VkClearValue clearColor = {
 		{0.0f, 0.0f, 0.0f, 1.0f}
 	};
 
+	// PIPELINE BARRIER NOT NEEDED IF THERE IS A RENDERPASS
+
+	VkRenderPassBeginInfo renderPassBegin = {};
+	renderPassBegin.clearValueCount = 1;
+	renderPassBegin.pClearValues = &clearColor;
+	renderPassBegin.renderArea.extent = surfaceExtent;
+	renderPassBegin.renderArea.offset = { 0, 0 };
+	renderPassBegin.renderPass = renderPass;
+	renderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+
 	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
-		barrierFromClearToPresent.image = swapchainImages[i];
-		barrierFromPresentToClear.image = swapchainImages[i];
+		renderPassBegin.framebuffer = frameBuffers[i];
 
 		vkBeginCommandBuffer(graphicsCommandBuffers[i], &beginInfo);
-		vkCmdPipelineBarrier(graphicsCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrierFromPresentToClear);
-
-		vkCmdClearColorImage(graphicsCommandBuffers[i], swapchainImages[i],
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearColor, 1, &subResourceRange);
+		vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
 		
-		vkCmdPipelineBarrier(graphicsCommandBuffers[i], VK_PIPELINE_STAGE_TRANSFER_BIT,
-			VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrierFromClearToPresent);
+		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		vkCmdDraw(graphicsCommandBuffers[i], 3, 1, 0, 0); // The vertices are defined in the shader
+
+		vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 		vkEndCommandBuffer(graphicsCommandBuffers[i]);
+	}
+}
+
+void Vulkan::createRenderPass()
+{
+	VkAttachmentDescription attachmentDescription = {};
+	attachmentDescription.format = surfaceFormat.format;
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
+	attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	attachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	attachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	attachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	
+	VkAttachmentReference colorAttachment = {};
+	colorAttachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subPassDescription = {};
+	subPassDescription.colorAttachmentCount = 1;
+	subPassDescription.pColorAttachments = &colorAttachment;
+	subPassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	
+	VkRenderPassCreateInfo renderPassInfo = {};
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &attachmentDescription;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subPassDescription;
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+
+	VkResult res = vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass);
+	assert(res == VK_SUCCESS);
+}
+
+void Vulkan::createGraphicsPipeline()
+{
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+	VkPipelineLayout pipelineLayout;
+	vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
+
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.colorWriteMask = 0xF;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+	VkPipelineColorBlendStateCreateInfo colorBlendState = {};
+	colorBlendState.attachmentCount = 1;
+	colorBlendState.pAttachments = &colorBlendAttachment;
+	colorBlendState.logicOp = VK_LOGIC_OP_COPY;
+	colorBlendState.blendConstants[0] = 0.0f;
+	colorBlendState.blendConstants[1] = 0.0f;
+	colorBlendState.blendConstants[2] = 0.0f;
+	colorBlendState.blendConstants[3] = 0.0f;
+	colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+
+	VkPipelineMultisampleStateCreateInfo multisampleState = {};
+	multisampleState.minSampleShading = 1.0f;
+	multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+
+	VkPipelineRasterizationStateCreateInfo rasterizationState = {};
+	rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizationState.lineWidth = 1.0f;
+	rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+
+	// TODO: Add vertex attributes, vertices will be defined in shader for now
+	VkPipelineVertexInputStateCreateInfo vertexInput = {};
+	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+	VkViewport viewport;
+	viewport.height = surfaceExtent.height;
+	viewport.width = surfaceExtent.width;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+
+	VkRect2D scissor;
+	scissor.extent = surfaceExtent;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.viewportCount = 1;
+	viewportState.pViewports = &viewport;
+	viewportState.scissorCount = 1;
+	viewportState.pScissors = &scissor;
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+
+	VkPipelineShaderStageCreateInfo shadersStages[] = {
+		createShaderStage("shaders/colorVert.spirv", VK_SHADER_STAGE_VERTEX_BIT),	// VERTEX SHADER
+		createShaderStage("shaders/colorFrag.spirv", VK_SHADER_STAGE_FRAGMENT_BIT),	// FRAGMENT SHADER
+	};
+
+	VkGraphicsPipelineCreateInfo graphicsPipelineInfo = {};
+	graphicsPipelineInfo.basePipelineIndex = -1;
+	graphicsPipelineInfo.subpass = 0;
+	graphicsPipelineInfo.renderPass = renderPass;
+	graphicsPipelineInfo.layout = pipelineLayout;
+	graphicsPipelineInfo.pColorBlendState = &colorBlendState;
+	graphicsPipelineInfo.pInputAssemblyState = &inputAssembly;
+	graphicsPipelineInfo.pMultisampleState = &multisampleState;
+	graphicsPipelineInfo.pRasterizationState = &rasterizationState;
+	graphicsPipelineInfo.pVertexInputState = &vertexInput;
+	graphicsPipelineInfo.pViewportState = &viewportState;
+	graphicsPipelineInfo.stageCount = 2;
+	graphicsPipelineInfo.pStages = shadersStages;
+	graphicsPipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+
+	VkResult res = vkCreateGraphicsPipelines(device, 0, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline);
+	assert(res == VK_SUCCESS);
+}
+
+VkPipelineShaderStageCreateInfo Vulkan::createShaderStage(const std::string& filename, VkShaderStageFlagBits shaderStage)
+{
+	std::ifstream file(filename, std::ios::binary);
+	file.seekg(0, std::ios::end);
+	std::vector<char> code(file.tellg());
+	file.seekg(0, std::ios::beg);
+	file.read(code.data(), code.size());
+
+	VkShaderModuleCreateInfo shaderModuleInfo = {};
+	shaderModuleInfo.codeSize = code.size();
+	shaderModuleInfo.pCode = (uint32_t*) code.data();
+	shaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+
+	VkShaderModule shaderModule;
+	vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &shaderModule);
+
+	VkPipelineShaderStageCreateInfo shaderStageInfo = {};
+	shaderStageInfo.module = shaderModule;
+	shaderStageInfo.pName = "main";
+	shaderStageInfo.stage = shaderStage;
+	shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+
+	return shaderStageInfo;
+}
+
+void Vulkan::createFrameBuffers()
+{
+	frameBuffers.resize(swapchainImages.size());
+
+	VkFramebufferCreateInfo frameBufferInfo = {};
+	frameBufferInfo.height = surfaceExtent.height;
+	frameBufferInfo.width = surfaceExtent.width;
+	frameBufferInfo.layers = 1;
+	frameBufferInfo.attachmentCount = 1;
+	frameBufferInfo.renderPass = renderPass;
+	frameBufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+
+	VkResult res;
+	for (int i = 0; i < swapchainImages.size(); i++) {
+		frameBufferInfo.pAttachments = &swapchainImageViews[i];
+		res = vkCreateFramebuffer(device, &frameBufferInfo, nullptr, &frameBuffers[i]);
+		assert(res == VK_SUCCESS);
 	}
 }
 
 Vulkan::~Vulkan()
 {
+	vkDeviceWaitIdle(device);
+	for (auto& frameBuffer : frameBuffers) {
+		vkDestroyFramebuffer(device, frameBuffer, nullptr);
+	}
+	for (auto& imageView : swapchainImageViews) {
+		vkDestroyImageView(device, imageView, nullptr);
+	}
+	vkDestroyRenderPass(device, renderPass, nullptr);
+	vkDestroySemaphore(device, imageIsAvailable, nullptr);
+	vkDestroySemaphore(device, imageIsRendered, nullptr);
 	vkDestroyCommandPool(device, commandPool, nullptr);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
+	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyDevice(device, nullptr);
 	vkDestroyInstance(instance, nullptr);
 }

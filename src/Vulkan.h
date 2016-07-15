@@ -12,9 +12,17 @@ private:
 	VkDevice device;
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+	VkSurfaceFormatKHR surfaceFormat;
+	VkExtent2D surfaceExtent;
+
 	std::vector<VkImage> swapchainImages;
+	std::vector<VkImageView> swapchainImageViews;
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> graphicsCommandBuffers;
+	std::vector<VkFramebuffer> frameBuffers;
+
+	VkRenderPass renderPass;
+	VkPipeline graphicsPipeline;
 
 	VkSemaphore imageIsAvailable;
 	VkSemaphore imageIsRendered;
@@ -37,6 +45,11 @@ private:
 	void createDevice();
 	uint32_t chooseQueueFamilyIndex();
 	void createSwapchain();
+	void createSwapchainImageViews();
 	void createCommandBuffers();
 	void recordDrawCommand();
+	void createRenderPass();
+	void createGraphicsPipeline();
+	void createFrameBuffers();
+	VkPipelineShaderStageCreateInfo createShaderStage(const std::string& filename, VkShaderStageFlagBits shaderStage);
 };
