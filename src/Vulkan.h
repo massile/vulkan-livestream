@@ -38,6 +38,8 @@ private:
 	VkShaderModule vertexShaderModule;
 	VkShaderModule fragmentShaderModule;
 
+	VkDescriptorPool descriptorPool;
+
 	uint32_t graphicsFamilyIndex = -1;
 	VkQueue graphicsQueue;
 
@@ -65,6 +67,7 @@ private:
 	void createSwapchainImageViews();
 	void prepareVertices();
 	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties);
+	void createDescriptorPool();
 	void createCommandBuffers();
 	void recordDrawCommand();
 	void createRenderPass();

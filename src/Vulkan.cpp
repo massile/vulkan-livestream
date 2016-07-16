@@ -300,6 +300,22 @@ uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 	return -1;
 }
 
+void Vulkan::createDescriptorPool()
+{
+	VkDescriptorPoolSize descriptorPoolSize = {};
+	descriptorPoolSize.descriptorCount = 1;
+	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+	descriptorPoolInfo.maxSets = 1;
+	descriptorPoolInfo.poolSizeCount = 1;
+	descriptorPoolInfo.pPoolSizes = &descriptorPoolSize;
+	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+
+	VkResult res = vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
+	assert(res == VK_SUCCESS);
+}
+
 void Vulkan::createSurface(GLFWwindow* window)
 {
 	glfwCreateWindowSurface(instance, window, nullptr, &surface);
