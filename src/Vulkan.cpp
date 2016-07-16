@@ -92,6 +92,7 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 
 void Vulkan::init()
 {
+	prepareVertices();
 	createSwapchain();
 	createRenderPass();
 	createFrameBuffers();
@@ -208,6 +209,93 @@ void Vulkan::createSwapchainImageViews()
 	}
 }
 
+// TODO : Factorize this
+void Vulkan::prepareVertices()
+{
+	std::vector<Vertex> vertices = {
+		{ {-1.0f, 1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+		{ { 0.0f,-1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+	};
+
+	VkBufferCreateInfo vertexBufferInfo = {};
+	vertexBufferInfo.size = vertices.size() * sizeof(Vertex);
+	vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+	VkResult res = vkCreateBuffer(device, &vertexBufferInfo, nullptr, &vertexBuffer);
+	assert(res == VK_SUCCESS);
+
+	// ALLOCATE MEMORY FOR VERTEX BUFFER
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memoryRequirements);
+
+
+	VkMemoryAllocateInfo memoryAllocInfo = {};
+	memoryAllocInfo.allocationSize = memoryRequirements.size;
+	// TODO : Copy this to the GPU
+	memoryAllocInfo.memoryTypeIndex = getMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	res = vkAllocateMemory(device, &memoryAllocInfo, nullptr, &vertexMemory);
+	assert(res == VK_SUCCESS);
+
+	void* data;
+	res = vkMapMemory(device, vertexMemory, 0, memoryAllocInfo.allocationSize, 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, vertices.data(), vertexBufferInfo.size);
+	vkUnmapMemory(device, vertexMemory);
+
+	res = vkBindBufferMemory(device, vertexBuffer, vertexMemory, 0);
+	assert(res == VK_SUCCESS);
+
+	/////////////////////////////////////////////////////////////////////////////
+
+	std::vector<uint32_t> indices = { 0, 1, 2 };
+
+	VkBufferCreateInfo indexBufferInfo = {};
+	indexBufferInfo.size = indices.size() * sizeof(uint32_t);
+	indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+	indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+	res = vkCreateBuffer(device, &indexBufferInfo, nullptr, &indexBuffer);
+	assert(res == VK_SUCCESS);
+
+	// ALLOCATE MEMORY FOR INDEX BUFFER
+	vkGetBufferMemoryRequirements(device, indexBuffer, &memoryRequirements);
+
+	memoryAllocInfo.allocationSize = memoryRequirements.size;
+	memoryAllocInfo.memoryTypeIndex = getMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+
+	res = vkAllocateMemory(device, &memoryAllocInfo, nullptr, &indexMemory);
+	assert(res == VK_SUCCESS);
+
+	res = vkMapMemory(device, indexMemory, 0, memoryAllocInfo.allocationSize, 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, indices.data(), indexBufferInfo.size);
+	vkUnmapMemory(device, indexMemory);
+
+	res = vkBindBufferMemory(device, indexBuffer, indexMemory, 0);
+	assert(res == VK_SUCCESS);
+
+}
+
+uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
+{
+	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
+
+	for (uint32_t i = 0; i < 32; i++) {
+		if ((typeBits & 1) == 1
+			&& (deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 void Vulkan::createSurface(GLFWwindow* window)
 {
 	glfwCreateWindowSurface(instance, window, nullptr, &surface);
@@ -261,6 +349,8 @@ void Vulkan::recordDrawCommand()
 	renderPassBegin.renderPass = renderPass;
 	renderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 
+	VkDeviceSize offsets = { 0 };
+
 	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
 		renderPassBegin.framebuffer = frameBuffers[i];
 
@@ -268,7 +358,9 @@ void Vulkan::recordDrawCommand()
 		vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
 		
 		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-		vkCmdDraw(graphicsCommandBuffers[i], 3, 1, 0, 0); // The vertices are defined in the shader
+		vkCmdBindVertexBuffers(graphicsCommandBuffers[i], VERTEX_BINDING_ID, 1, &vertexBuffer, &offsets);
+		vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 1);
 
 		vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 		vkEndCommandBuffer(graphicsCommandBuffers[i]);
@@ -349,9 +441,34 @@ void Vulkan::createGraphicsPipeline()
 	rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
-	// TODO: Add vertex attributes, vertices will be defined in shader for now
+
+	VkVertexInputBindingDescription vertexBindingDescription = {};
+	vertexBindingDescription.binding = VERTEX_BINDING_ID;
+	vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vertexBindingDescription.stride = sizeof(Vertex);
+
+	VkVertexInputAttributeDescription positionDescription = {};
+	positionDescription.binding = VERTEX_BINDING_ID;
+	positionDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	positionDescription.location = 0;
+	positionDescription.offset = offsetof(Vertex, position);
+
+	VkVertexInputAttributeDescription colorDescription = {};
+	colorDescription.binding = VERTEX_BINDING_ID;
+	colorDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	colorDescription.location = 1;
+	colorDescription.offset = offsetof(Vertex, color);
+
+	VkVertexInputAttributeDescription attributeDescriptions[] = {
+		positionDescription, colorDescription
+	};
+
 	VkPipelineVertexInputStateCreateInfo vertexInput = {};
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInput.vertexBindingDescriptionCount = 1;
+	vertexInput.pVertexBindingDescriptions = &vertexBindingDescription;
+	vertexInput.vertexAttributeDescriptionCount = 2; // COLOR AND POSITION
+	vertexInput.pVertexAttributeDescriptions = attributeDescriptions;
 
 	VkViewport viewport;
 	viewport.height = surfaceExtent.height;
