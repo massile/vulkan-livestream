@@ -5,6 +5,10 @@ layout(location = 1) in vec3 color;
 
 out vec3 colorFrag;
 
+out gl_PerVertex {
+	vec4 gl_Position;
+};
+
 void main()
 {
 	colorFrag = color;
