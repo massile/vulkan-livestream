@@ -249,6 +249,19 @@ void Vulkan::prepareVertices()
 	res = vkBindBufferMemory(device, vertexBuffer, vertexMemory, 0);
 	assert(res == VK_SUCCESS);
 
+uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
+{
+	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
+
+	for (uint32_t i = 0; i < 32; i++) {
+		if ((typeBits & 1) == 1
+			&& (deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 void Vulkan::createSurface(GLFWwindow* window)
