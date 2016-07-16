@@ -1,14 +1,23 @@
 #pragma once
 
-#include <vulkan\vulkan.h>
+#include <vulkan/vulkan.h>
 #include <vector>
-#include <GLFW\glfw3.h>
+#include <GLFW/glfw3.h>
+#include <glm.hpp>
+#include <gtc/matrix_transform.hpp>
 
 #define VERTEX_BINDING_ID 0
 
 struct Vertex {
 	float position[3];
 	float color[3];
+};
+
+// JUST FOR TESTING
+struct Uniforms {
+	glm::mat4 projectionMatrix;
+	glm::mat4 modelMatrix;
+	glm::mat4 viewMatrix;
 };
 
 class Vulkan
@@ -38,6 +47,16 @@ private:
 	VkShaderModule vertexShaderModule;
 	VkShaderModule fragmentShaderModule;
 
+	VkDescriptorPool descriptorPool;
+
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSet descriptorSet;
+	Uniforms uniforms; // FOR TESTING
+	VkBuffer uniformBuffer;
+	VkDeviceMemory uniformMemory;
+	VkDescriptorBufferInfo uniformDescriptor;
+
 	uint32_t graphicsFamilyIndex = -1;
 	VkQueue graphicsQueue;
 
@@ -63,8 +82,15 @@ private:
 	uint32_t chooseQueueFamilyIndex();
 	void createSwapchain();
 	void createSwapchainImageViews();
+	
 	void prepareVertices();
+	void prepareUniforms();
+	void loadUniforms();
+
 	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties);
+	void createDescriptorPool();
+	void setupDescriptorSets();
+
 	void createCommandBuffers();
 	void recordDrawCommand();
 	void createRenderPass();

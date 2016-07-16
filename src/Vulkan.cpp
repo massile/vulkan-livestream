@@ -92,8 +92,11 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 
 void Vulkan::init()
 {
-	prepareVertices();
 	createSwapchain();
+
+	prepareVertices();
+	prepareUniforms();
+
 	createRenderPass();
 	createFrameBuffers();
 	createGraphicsPipeline();
@@ -285,6 +288,53 @@ void Vulkan::prepareVertices()
 
 }
 
+void Vulkan::prepareUniforms()
+{
+	VkBufferCreateInfo uniformBufferInfo = {};
+	uniformBufferInfo.size = sizeof(Uniforms);
+	uniformBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	uniformBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+	VkResult res = vkCreateBuffer(device, &uniformBufferInfo, nullptr, &uniformBuffer);
+	assert(res == VK_SUCCESS);
+
+	VkMemoryRequirements memoryReqs;
+	vkGetBufferMemoryRequirements(device, uniformBuffer, &memoryReqs);
+
+	VkMemoryAllocateInfo uniformMemoryInfo = {};
+	uniformMemoryInfo.allocationSize = memoryReqs.size;
+	uniformMemoryInfo.memoryTypeIndex = 
+		getMemoryType(memoryReqs.memoryTypeBits,
+								VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	uniformMemoryInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	res = vkAllocateMemory(device, &uniformMemoryInfo, nullptr, &uniformMemory);
+	assert(res == VK_SUCCESS);
+
+	res = vkBindBufferMemory(device, uniformBuffer, uniformMemory, 0);
+	assert(res == VK_SUCCESS);
+
+	uniformDescriptor.buffer = uniformBuffer;
+	uniformDescriptor.offset = 0;
+	uniformDescriptor.range = uniformBufferInfo.size;
+
+	loadUniforms();
+	createDescriptorPool();
+	setupDescriptorSets();
+}
+
+void Vulkan::loadUniforms()
+{
+	uniforms.modelMatrix = glm::mat4x4();
+	uniforms.projectionMatrix = glm::perspective(glm::radians(70.0f), (float)surfaceExtent.width/ (float)surfaceExtent.height, 0.1f, 100.0f);
+	uniforms.viewMatrix = glm::translate(glm::mat4x4(), glm::vec3(0.0f, 0.0f, -5.0f));
+
+	void* data;
+	VkResult res = vkMapMemory(device, uniformMemory, 0, sizeof(uniforms), 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, &uniforms, sizeof(uniforms));
+	vkUnmapMemory(device, uniformMemory);
+}
+
 uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
@@ -299,6 +349,62 @@ uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 
 	return -1;
 }
+
+void Vulkan::createDescriptorPool()
+{
+	VkDescriptorPoolSize descriptorPoolSize = {};
+	descriptorPoolSize.descriptorCount = 1;
+	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+	descriptorPoolInfo.maxSets = 1;
+	descriptorPoolInfo.poolSizeCount = 1;
+	descriptorPoolInfo.pPoolSizes = &descriptorPoolSize;
+	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+
+	VkResult res = vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
+	assert(res == VK_SUCCESS);
+}
+
+void Vulkan::setupDescriptorSets()
+{
+	VkDescriptorSetLayoutBinding binding = {};
+	binding.descriptorCount = 1;
+	binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {};
+	descriptorSetLayoutInfo.bindingCount = 1;
+	descriptorSetLayoutInfo.pBindings = &binding;
+	descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+	VkResult res = vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &descriptorSetLayout);
+	assert(res == VK_SUCCESS);
+
+	// Add a new descriptor using the descirptor pool
+	VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {};
+	descriptorSetAllocInfo.descriptorPool = descriptorPool;
+	descriptorSetAllocInfo.descriptorSetCount = 1;
+	descriptorSetAllocInfo.pSetLayouts = &descriptorSetLayout;
+	descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+
+	res = vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &descriptorSet);
+	assert(res == VK_SUCCESS);
+
+	// Match binding points to the descirptor set
+
+	// Binding : 0
+	VkWriteDescriptorSet writeDescriptorSet = {};
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.descriptorCount = 1;
+	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeDescriptorSet.dstSet = descriptorSet;
+	writeDescriptorSet.pBufferInfo = &uniformDescriptor;
+	writeDescriptorSet.dstBinding = 0;
+
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+ }
 
 void Vulkan::createSurface(GLFWwindow* window)
 {
@@ -361,6 +467,7 @@ void Vulkan::recordDrawCommand()
 		vkBeginCommandBuffer(graphicsCommandBuffers[i], &beginInfo);
 		vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
 		
+		vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		vkCmdBindVertexBuffers(graphicsCommandBuffers[i], VERTEX_BINDING_ID, 1, &vertexBuffer, &offsets);
 		vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -406,6 +513,8 @@ void Vulkan::createGraphicsPipeline()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 	vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
