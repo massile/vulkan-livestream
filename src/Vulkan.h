@@ -40,6 +40,9 @@ private:
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexMemory;
 
+	VkBuffer indexBuffer;
+	VkDeviceMemory indexMemory;
+
 public:
 	static Vulkan app;
 

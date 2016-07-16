@@ -249,6 +249,38 @@ void Vulkan::prepareVertices()
 	res = vkBindBufferMemory(device, vertexBuffer, vertexMemory, 0);
 	assert(res == VK_SUCCESS);
 
+	/////////////////////////////////////////////////////////////////////////////
+
+	std::vector<uint32_t> indices = { 0, 1, 2 };
+
+	VkBufferCreateInfo indexBufferInfo = {};
+	indexBufferInfo.size = indices.size() * sizeof(uint32_t);
+	indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+	indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+	res = vkCreateBuffer(device, &indexBufferInfo, nullptr, &indexBuffer);
+	assert(res == VK_SUCCESS);
+
+	// ALLOCATE MEMORY FOR INDEX BUFFER
+	vkGetBufferMemoryRequirements(device, indexBuffer, &memoryRequirements);
+
+	memoryAllocInfo.allocationSize = memoryRequirements.size;
+	memoryAllocInfo.memoryTypeIndex = getMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+
+	res = vkAllocateMemory(device, &memoryAllocInfo, nullptr, &indexMemory);
+	assert(res == VK_SUCCESS);
+
+	res = vkMapMemory(device, indexMemory, 0, memoryAllocInfo.allocationSize, 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, indices.data(), indexBufferInfo.size);
+	vkUnmapMemory(device, indexMemory);
+
+	res = vkBindBufferMemory(device, indexBuffer, indexMemory, 0);
+	assert(res == VK_SUCCESS);
+
+}
+
 uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
