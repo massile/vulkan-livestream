@@ -34,6 +34,10 @@ private:
 	VkSemaphore imageIsAvailable;
 	VkSemaphore imageIsRendered;
 
+	VkPipelineLayout pipelineLayout;
+	VkShaderModule vertexShaderModule;
+	VkShaderModule fragmentShaderModule;
+
 	uint32_t graphicsFamilyIndex = -1;
 	VkQueue graphicsQueue;
 

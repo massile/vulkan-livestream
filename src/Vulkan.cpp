@@ -406,8 +406,6 @@ void Vulkan::createGraphicsPipeline()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-
-	VkPipelineLayout pipelineLayout;
 	vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
@@ -516,6 +514,9 @@ void Vulkan::createGraphicsPipeline()
 
 	VkResult res = vkCreateGraphicsPipelines(device, 0, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline);
 	assert(res == VK_SUCCESS);
+
+	vkDestroyShaderModule(device, vertexShaderModule, nullptr);
+	vkDestroyShaderModule(device, fragmentShaderModule, nullptr);
 }
 
 VkPipelineShaderStageCreateInfo Vulkan::createShaderStage(const std::string& filename, VkShaderStageFlagBits shaderStage)
@@ -532,7 +533,14 @@ VkPipelineShaderStageCreateInfo Vulkan::createShaderStage(const std::string& fil
 	shaderModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 
 	VkShaderModule shaderModule;
-	vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &shaderModule);
+	if (shaderStage == VK_SHADER_STAGE_VERTEX_BIT) {
+		vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &vertexShaderModule);
+		shaderModule = vertexShaderModule;
+	}
+	else {
+		vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &fragmentShaderModule);
+		shaderModule = fragmentShaderModule;
+	}
 
 	VkPipelineShaderStageCreateInfo shaderStageInfo = {};
 	shaderStageInfo.module = shaderModule;
@@ -566,16 +574,26 @@ void Vulkan::createFrameBuffers()
 Vulkan::~Vulkan()
 {
 	vkDeviceWaitIdle(device);
+	
+	vkFreeMemory(device, indexMemory, nullptr);
+	vkFreeMemory(device, vertexMemory, nullptr);
+	
+	vkDestroyBuffer(device, vertexBuffer, nullptr);
+	vkDestroyBuffer(device, indexBuffer, nullptr);
+
 	for (auto& frameBuffer : frameBuffers) {
 		vkDestroyFramebuffer(device, frameBuffer, nullptr);
 	}
 	for (auto& imageView : swapchainImageViews) {
 		vkDestroyImageView(device, imageView, nullptr);
 	}
+
 	vkDestroyRenderPass(device, renderPass, nullptr);
 	vkDestroySemaphore(device, imageIsAvailable, nullptr);
 	vkDestroySemaphore(device, imageIsRendered, nullptr);
 	vkDestroyCommandPool(device, commandPool, nullptr);
+	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroySwapchainKHR(device, swapchain, nullptr);
 	vkDestroySurfaceKHR(instance, surface, nullptr);
 	vkDestroyDevice(device, nullptr);
