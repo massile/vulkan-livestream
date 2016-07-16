@@ -135,6 +135,10 @@ void Vulkan::draw()
 
 void Vulkan::createSwapchain()
 {
+	VkBool32 surfaceSupported = VK_FALSE;
+	vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, graphicsFamilyIndex, surface, &surfaceSupported);
+	assert(surfaceSupported == VK_TRUE);
+
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &surfaceCapabilities);
 
@@ -325,7 +329,7 @@ void Vulkan::createCommandBuffers()
 void Vulkan::recordDrawCommand()
 {
 	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
 	VkImageSubresourceRange subResourceRange = {};
@@ -371,7 +375,7 @@ void Vulkan::createRenderPass()
 {
 	VkAttachmentDescription attachmentDescription = {};
 	attachmentDescription.format = surfaceFormat.format;
-	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	attachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	attachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	attachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 	attachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
