@@ -349,6 +349,8 @@ void Vulkan::recordDrawCommand()
 	renderPassBegin.renderPass = renderPass;
 	renderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 
+	VkDeviceSize offsets = { 0 };
+
 	for (uint32_t i = 0; i < swapchainImages.size(); i++) {
 		renderPassBegin.framebuffer = frameBuffers[i];
 
@@ -356,7 +358,9 @@ void Vulkan::recordDrawCommand()
 		vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
 		
 		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-		vkCmdDraw(graphicsCommandBuffers[i], 3, 1, 0, 0); // The vertices are defined in the shader
+		vkCmdBindVertexBuffers(graphicsCommandBuffers[i], VERTEX_BINDING_ID, 1, &vertexBuffer, &offsets);
+		vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 1);
 
 		vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 		vkEndCommandBuffer(graphicsCommandBuffers[i]);
