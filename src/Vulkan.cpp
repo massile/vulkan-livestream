@@ -92,8 +92,11 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 
 void Vulkan::init()
 {
-	prepareVertices();
 	createSwapchain();
+
+	prepareVertices();
+	prepareUniforms();
+
 	createRenderPass();
 	createFrameBuffers();
 	createGraphicsPipeline();
@@ -283,6 +286,50 @@ void Vulkan::prepareVertices()
 	res = vkBindBufferMemory(device, indexBuffer, indexMemory, 0);
 	assert(res == VK_SUCCESS);
 
+}
+
+void Vulkan::prepareUniforms()
+{
+	VkBufferCreateInfo uniformBufferInfo = {};
+	uniformBufferInfo.size = sizeof(Uniforms);
+	uniformBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	uniformBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+	VkResult res = vkCreateBuffer(device, &uniformBufferInfo, nullptr, &uniformBuffer);
+	assert(res == VK_SUCCESS);
+
+	VkMemoryRequirements memoryReqs;
+	vkGetBufferMemoryRequirements(device, uniformBuffer, &memoryReqs);
+
+	VkMemoryAllocateInfo uniformMemoryInfo = {};
+	uniformMemoryInfo.allocationSize = memoryReqs.size;
+	uniformMemoryInfo.memoryTypeIndex = 
+		getMemoryType(memoryReqs.memoryTypeBits,
+								VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	uniformMemoryInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	res = vkAllocateMemory(device, &uniformMemoryInfo, nullptr, &uniformMemory);
+	assert(res == VK_SUCCESS);
+
+	res = vkBindBufferMemory(device, uniformBuffer, uniformMemory, 0);
+	assert(res == VK_SUCCESS);
+
+	uniformDescriptor.buffer = uniformBuffer;
+	uniformDescriptor.offset = 0;
+	uniformDescriptor.range = uniformBufferInfo.size;
+
+	loadUniforms();
+
+void Vulkan::loadUniforms()
+{
+	uniforms.modelMatrix = glm::mat4x4();
+	uniforms.projectionMatrix = glm::perspective(glm::radians(70.0f), (float)surfaceExtent.width/ (float)surfaceExtent.height, 0.1f, 100.0f);
+	uniforms.viewMatrix = glm::translate(glm::mat4x4(), glm::vec3(0.0f, 0.0f, -5.0f));
+
+	void* data;
+	VkResult res = vkMapMemory(device, uniformMemory, 0, sizeof(uniforms), 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, &uniforms, sizeof(uniforms));
+	vkUnmapMemory(device, uniformMemory);
 }
 
 uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
