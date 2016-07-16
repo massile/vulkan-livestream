@@ -92,6 +92,7 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 
 void Vulkan::init()
 {
+	prepareVertices();
 	createSwapchain();
 	createRenderPass();
 	createFrameBuffers();
@@ -206,6 +207,48 @@ void Vulkan::createSwapchainImageViews()
 		res = vkCreateImageView(device, &imageViewInfo, nullptr, &swapchainImageViews[i]);
 		assert(res == VK_SUCCESS);
 	}
+}
+
+// TODO : Factorize this
+void Vulkan::prepareVertices()
+{
+	std::vector<Vertex> vertices = {
+		{ {-1.0f, 1.0f, 0.0f }, { 1.0f, 0.0f, 0.0f } },
+		{ { 1.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+		{ { 0.0f,-1.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+	};
+
+	VkBufferCreateInfo vertexBufferInfo = {};
+	vertexBufferInfo.size = vertices.size() * sizeof(Vertex);
+	vertexBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+
+	VkResult res = vkCreateBuffer(device, &vertexBufferInfo, nullptr, &vertexBuffer);
+	assert(res == VK_SUCCESS);
+
+	// ALLOCATE MEMORY FOR VERTEX BUFFER
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(device, vertexBuffer, &memoryRequirements);
+
+
+	VkMemoryAllocateInfo memoryAllocInfo = {};
+	memoryAllocInfo.allocationSize = memoryRequirements.size;
+	// TODO : Copy this to the GPU
+	memoryAllocInfo.memoryTypeIndex = getMemoryType(memoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+	memoryAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	res = vkAllocateMemory(device, &memoryAllocInfo, nullptr, &vertexMemory);
+	assert(res == VK_SUCCESS);
+
+	void* data;
+	res = vkMapMemory(device, vertexMemory, 0, memoryAllocInfo.allocationSize, 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, vertices.data(), vertexBufferInfo.size);
+	vkUnmapMemory(device, vertexMemory);
+
+	res = vkBindBufferMemory(device, vertexBuffer, vertexMemory, 0);
+	assert(res == VK_SUCCESS);
+
 }
 
 void Vulkan::createSurface(GLFWwindow* window)
