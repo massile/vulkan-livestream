@@ -437,9 +437,34 @@ void Vulkan::createGraphicsPipeline()
 	rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
-	// TODO: Add vertex attributes, vertices will be defined in shader for now
+
+	VkVertexInputBindingDescription vertexBindingDescription = {};
+	vertexBindingDescription.binding = VERTEX_BINDING_ID;
+	vertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	vertexBindingDescription.stride = sizeof(Vertex);
+
+	VkVertexInputAttributeDescription positionDescription = {};
+	positionDescription.binding = VERTEX_BINDING_ID;
+	positionDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	positionDescription.location = 0;
+	positionDescription.offset = offsetof(Vertex, position);
+
+	VkVertexInputAttributeDescription colorDescription = {};
+	colorDescription.binding = VERTEX_BINDING_ID;
+	colorDescription.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+	colorDescription.location = 1;
+	colorDescription.offset = offsetof(Vertex, color);
+
+	VkVertexInputAttributeDescription attributeDescriptions[] = {
+		positionDescription, colorDescription
+	};
+
 	VkPipelineVertexInputStateCreateInfo vertexInput = {};
 	vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInput.vertexBindingDescriptionCount = 1;
+	vertexInput.pVertexBindingDescriptions = &vertexBindingDescription;
+	vertexInput.vertexAttributeDescriptionCount = 2; // COLOR AND POSITION
+	vertexInput.pVertexAttributeDescriptions = attributeDescriptions;
 
 	VkViewport viewport;
 	viewport.height = surfaceExtent.height;
