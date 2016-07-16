@@ -318,6 +318,9 @@ void Vulkan::prepareUniforms()
 	uniformDescriptor.range = uniformBufferInfo.size;
 
 	loadUniforms();
+	createDescriptorPool();
+	setupDescriptorSets();
+}
 
 void Vulkan::loadUniforms()
 {
@@ -362,6 +365,46 @@ void Vulkan::createDescriptorPool()
 	VkResult res = vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
 	assert(res == VK_SUCCESS);
 }
+
+void Vulkan::setupDescriptorSets()
+{
+	VkDescriptorSetLayoutBinding binding = {};
+	binding.descriptorCount = 1;
+	binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {};
+	descriptorSetLayoutInfo.bindingCount = 1;
+	descriptorSetLayoutInfo.pBindings = &binding;
+	descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+	VkResult res = vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &descriptorSetLayout);
+	assert(res == VK_SUCCESS);
+
+	// Add a new descriptor using the descirptor pool
+	VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {};
+	descriptorSetAllocInfo.descriptorPool = descriptorPool;
+	descriptorSetAllocInfo.descriptorSetCount = 1;
+	descriptorSetAllocInfo.pSetLayouts = &descriptorSetLayout;
+	descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+
+	res = vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &descriptorSet);
+	assert(res == VK_SUCCESS);
+
+	// Match binding points to the descirptor set
+
+	// Binding : 0
+	VkWriteDescriptorSet writeDescriptorSet = {};
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.descriptorCount = 1;
+	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeDescriptorSet.dstSet = descriptorSet;
+	writeDescriptorSet.pBufferInfo = &uniformDescriptor;
+	writeDescriptorSet.dstBinding = 0;
+
+	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+ }
 
 void Vulkan::createSurface(GLFWwindow* window)
 {
@@ -424,6 +467,7 @@ void Vulkan::recordDrawCommand()
 		vkBeginCommandBuffer(graphicsCommandBuffers[i], &beginInfo);
 		vkCmdBeginRenderPass(graphicsCommandBuffers[i], &renderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
 		
+		vkCmdBindDescriptorSets(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		vkCmdBindVertexBuffers(graphicsCommandBuffers[i], VERTEX_BINDING_ID, 1, &vertexBuffer, &offsets);
 		vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
@@ -469,6 +513,8 @@ void Vulkan::createGraphicsPipeline()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = 1;
+	pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
 	vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
 
 	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};

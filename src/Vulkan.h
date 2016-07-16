@@ -49,6 +49,9 @@ private:
 
 	VkDescriptorPool descriptorPool;
 
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSet descriptorSet;
 	Uniforms uniforms; // FOR TESTING
 	VkBuffer uniformBuffer;
 	VkDeviceMemory uniformMemory;
@@ -86,6 +89,8 @@ private:
 
 	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties);
 	void createDescriptorPool();
+	void setupDescriptorSets();
+
 	void createCommandBuffers();
 	void recordDrawCommand();
 	void createRenderPass();
