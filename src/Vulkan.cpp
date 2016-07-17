@@ -93,6 +93,7 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 void Vulkan::init()
 {
 	createSwapchain();
+	findCompatibleDepthFormat();
 
 	prepareVertices();
 	prepareUniforms();
@@ -213,6 +214,28 @@ void Vulkan::createSwapchainImageViews()
 		imageViewInfo.image = swapchainImages[i];
 		res = vkCreateImageView(device, &imageViewInfo, nullptr, &swapchainImageViews[i]);
 		assert(res == VK_SUCCESS);
+	}
+}
+
+
+
+void Vulkan::findCompatibleDepthFormat()
+{
+	VkFormat orderedDepthFormatsList[] = {
+		VK_FORMAT_D32_SFLOAT_S8_UINT,
+		VK_FORMAT_D32_SFLOAT,
+		VK_FORMAT_D24_UNORM_S8_UINT,
+		VK_FORMAT_D16_UNORM_S8_UINT,
+		VK_FORMAT_D16_UNORM,
+	};
+
+	VkFormatProperties props;
+	for (VkFormat& format : orderedDepthFormatsList) {
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
+		if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+			depthFormat = format;
+			return;
+		}
 	}
 }
 
