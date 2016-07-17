@@ -686,9 +686,11 @@ Vulkan::~Vulkan()
 	
 	vkFreeMemory(device, indexMemory, nullptr);
 	vkFreeMemory(device, vertexMemory, nullptr);
-	
+	vkFreeMemory(device, uniformMemory, nullptr);
+
 	vkDestroyBuffer(device, vertexBuffer, nullptr);
 	vkDestroyBuffer(device, indexBuffer, nullptr);
+	vkDestroyBuffer(device, uniformBuffer, nullptr);
 
 	for (auto& frameBuffer : frameBuffers) {
 		vkDestroyFramebuffer(device, frameBuffer, nullptr);
@@ -696,6 +698,9 @@ Vulkan::~Vulkan()
 	for (auto& imageView : swapchainImageViews) {
 		vkDestroyImageView(device, imageView, nullptr);
 	}
+
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
 	vkDestroyRenderPass(device, renderPass, nullptr);
 	vkDestroySemaphore(device, imageIsAvailable, nullptr);
