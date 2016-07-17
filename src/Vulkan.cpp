@@ -468,6 +468,7 @@ uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 			&& (deviceMemoryProperties.memoryTypes[i].propertyFlags & properties) == properties) {
 			return i;
 		}
+		typeBits >>= 1;
 	}
 
 	return -1;
