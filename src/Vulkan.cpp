@@ -108,6 +108,8 @@ void Vulkan::init()
 
 void Vulkan::draw()
 {
+	loadUniforms();
+
 	// Get next image in swapchain
 	uint32_t imageIndex;
 	vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageIsAvailable, 0, &imageIndex);
@@ -358,7 +360,25 @@ void Vulkan::prepareVertices()
 
 	/////////////////////////////////////////////////////////////////////////////
 
-	std::vector<uint32_t> indices = { 0, 1, 2 };
+	std::vector<uint32_t> indices = {
+		0, 2, 1,
+		1, 2, 3,
+
+		4, 5, 6,
+		5, 7, 6,
+
+		8, 10, 9,
+		9, 10, 11,
+
+		12, 13, 14,
+		13, 15, 14,
+
+		16, 18, 17,
+		17, 18, 19,
+
+		20, 21, 22,
+		21, 23, 22,
+	};
 
 	VkBufferCreateInfo indexBufferInfo = {};
 	indexBufferInfo.size = indices.size() * sizeof(uint32_t);
@@ -424,7 +444,8 @@ void Vulkan::prepareUniforms()
 
 void Vulkan::loadUniforms()
 {
-	uniforms.modelMatrix = glm::mat4x4();
+	static float y = 0.0f;
+	uniforms.modelMatrix = glm::rotate(glm::mat4x4(), y, glm::vec3(0, 1, 1));
 	uniforms.projectionMatrix = glm::perspective(glm::radians(70.0f), (float)surfaceExtent.width/ (float)surfaceExtent.height, 0.1f, 100.0f);
 	uniforms.viewMatrix = glm::translate(glm::mat4x4(), glm::vec3(0.0f, 0.0f, -5.0f));
 
@@ -433,6 +454,8 @@ void Vulkan::loadUniforms()
 	assert(res == VK_SUCCESS);
 	memcpy(data, &uniforms, sizeof(uniforms));
 	vkUnmapMemory(device, uniformMemory);
+
+	y += 0.001f;
 }
 
 uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
@@ -572,7 +595,7 @@ void Vulkan::recordDrawCommand()
 		vkCmdBindPipeline(graphicsCommandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 		vkCmdBindVertexBuffers(graphicsCommandBuffers[i], VERTEX_BINDING_ID, 1, &vertexBuffer, &offsets);
 		vkCmdBindIndexBuffer(graphicsCommandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdDrawIndexed(graphicsCommandBuffers[i], 3, 1, 0, 0, 1);
+		vkCmdDrawIndexed(graphicsCommandBuffers[i], 36, 1, 0, 0, 1);
 
 		vkCmdEndRenderPass(graphicsCommandBuffers[i]);
 		vkEndCommandBuffer(graphicsCommandBuffers[i]);
@@ -665,7 +688,7 @@ void Vulkan::createGraphicsPipeline()
 	multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 
 	VkPipelineRasterizationStateCreateInfo rasterizationState = {};
-	rasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationState.cullMode = VK_CULL_MODE_NONE;
 	rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizationState.lineWidth = 1.0f;
 	rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
