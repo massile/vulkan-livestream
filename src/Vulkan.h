@@ -33,6 +33,10 @@ private:
 
 	std::vector<VkImage> swapchainImages;
 	std::vector<VkImageView> swapchainImageViews;
+
+	VkImage depthBufferImage;
+	VkImageView depthBufferImageView;
+	VkDeviceMemory depthBufferMemory;
 	VkFormat depthFormat;
 
 
@@ -87,6 +91,7 @@ private:
 	void createSwapchainImageViews();
 
 	void findCompatibleDepthFormat();
+	void createDepthBuffer();
 	
 	void prepareVertices();
 	void prepareUniforms();
