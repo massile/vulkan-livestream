@@ -2,6 +2,10 @@
 #include <iostream>
 #include <assert.h>
 #include <fstream>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#include "helpers\Helpers.h" // TEMPORARY
+
 
 Vulkan Vulkan::app;
 
@@ -93,6 +97,10 @@ uint32_t Vulkan::chooseQueueFamilyIndex()
 void Vulkan::init()
 {
 	createSwapchain();
+	createCommandBuffers();
+
+	loadTexture("textures/test.jpg");
+
 	findCompatibleDepthFormat();
 	createDepthBuffer();
 
@@ -102,7 +110,6 @@ void Vulkan::init()
 	createRenderPass();
 	createFrameBuffers();
 	createGraphicsPipeline();
-	createCommandBuffers();
 	recordDrawCommand();
 }
 
@@ -458,6 +465,60 @@ void Vulkan::loadUniforms()
 	y += 0.001f;
 }
 
+void Vulkan::loadTexture(const std::string & filename)
+{
+	// CREATE TEXTURE'S IMAGE
+
+
+	int texWidth;
+	int texHeight;
+	int texComp;
+
+	stbi_uc* pixels = stbi_load(filename.c_str(), &texWidth, &texHeight, &texComp, STBI_rgb_alpha);
+	assert(pixels);
+
+
+	VkImage hostImage;
+	VkDeviceMemory imageMemory;
+
+	vk::createImage(
+		physicalDevice,
+		device,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		VK_IMAGE_TILING_LINEAR,
+		VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+		hostImage, texWidth, texHeight, imageMemory);
+
+
+	void* data;
+	VkDeviceSize size = texHeight * texHeight * 4;
+	VkResult res = vkMapMemory(device, imageMemory, 0, size, 0, &data);
+	assert(res == VK_SUCCESS);
+	memcpy(data, pixels, size_t(size));
+	vkUnmapMemory(device, hostImage);
+
+	vkBindImageMemory(device, hostImage, imageMemory, 0);
+
+	// LAYOUTS TRANSITION
+	VkImage deviceImage;
+	VkDeviceMemory deviceMemory;
+
+	
+	vk::createImage(
+		physicalDevice,
+		device,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		VK_IMAGE_TILING_LINEAR,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		deviceImage, texWidth, texHeight, deviceMemory);
+
+	vk::changeImageLayout(graphicsQueue, hostImage, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, commandPool, device);
+	vk::changeImageLayout(graphicsQueue, deviceImage, VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandPool, device);
+
+	vk::copyImage(graphicsQueue, hostImage, deviceImage, texWidth, texHeight, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, commandPool, device);
+	vk::changeImageLayout(graphicsQueue, deviceImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandPool, device);
+}
+
 uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 {
 	VkPhysicalDeviceMemoryProperties deviceMemoryProperties;
@@ -545,15 +606,9 @@ void Vulkan::createCommandBuffers()
 
 	// One buffer per image on the swapchain
 
-	VkCommandBufferAllocateInfo bufferAllocInfo = {};
-	bufferAllocInfo.commandBufferCount = swapchainImages.size();
-	bufferAllocInfo.commandPool = commandPool;
-	bufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	bufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-
-	graphicsCommandBuffers.resize(swapchainImages.size());
-	res = vkAllocateCommandBuffers(device, &bufferAllocInfo, graphicsCommandBuffers.data());
-	assert(res == VK_SUCCESS);
+	for (int i = 0; i < swapchainImages.size(); i++) {
+		graphicsCommandBuffers.push_back(vk::createCommandBuffer(commandPool, device));
+	}
 }
 
 void Vulkan::recordDrawCommand()

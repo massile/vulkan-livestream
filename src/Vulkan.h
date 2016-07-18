@@ -97,6 +97,8 @@ private:
 	void prepareUniforms();
 	void loadUniforms();
 
+	void loadTexture(const std::string& filename);
+
 	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties);
 	void createDescriptorPool();
 	void setupDescriptorSets();
