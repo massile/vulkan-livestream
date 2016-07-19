@@ -440,7 +440,7 @@ void Vulkan::loadTexture(const std::string & filename)
 
 
 	VkImage hostImage;
-	VkDeviceMemory imageMemory;
+	VkDeviceMemory hostMemory;
 
 	vk::createImage(
 		physicalDevice,
@@ -448,12 +448,12 @@ void Vulkan::loadTexture(const std::string & filename)
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		VK_IMAGE_TILING_LINEAR,
 		VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-		hostImage, texWidth, texHeight, imageMemory);
+		hostImage, texWidth, texHeight, hostMemory);
 
 
 	void* data;
 	VkDeviceSize size = texHeight * texHeight * 4;
-	VkResult res = vkMapMemory(device, imageMemory, 0, size, 0, &data);
+	VkResult res = vkMapMemory(device, hostMemory, 0, size, 0, &data);
 	assert(res == VK_SUCCESS);
 	memcpy(data, pixels, size_t(size));
 	vkUnmapMemory(device, hostImage);
@@ -481,6 +481,9 @@ void Vulkan::loadTexture(const std::string & filename)
 	texture.height = texHeight;
 	texture.memory = deviceMemory;
 	texture.image = deviceImage;
+
+	vkDestroyImage(device, hostImage, nullptr);
+	vkFreeMemory(device, hostMemory, nullptr);
 }
 
 void Vulkan::loadSampler()
@@ -933,13 +936,18 @@ Vulkan::~Vulkan()
 	vkFreeMemory(device, vertexMemory, nullptr);
 	vkFreeMemory(device, uniformMemory, nullptr);
 	vkFreeMemory(device, depthBufferMemory, nullptr);
+	vkFreeMemory(device, texture.memory, nullptr);
 
 	vkDestroyBuffer(device, vertexBuffer, nullptr);
 	vkDestroyBuffer(device, indexBuffer, nullptr);
 	vkDestroyBuffer(device, uniformBuffer, nullptr);
 
 	vkDestroyImageView(device, depthBufferImageView, nullptr);
+	vkDestroyImageView(device, texture.view, nullptr);
 	vkDestroyImage(device, depthBufferImage, nullptr);
+	vkDestroyImage(device, texture.image, nullptr);
+
+	vkDestroySampler(device, texture.sampler, nullptr);
 
 	for (auto& frameBuffer : frameBuffers) {
 		vkDestroyFramebuffer(device, frameBuffer, nullptr);
