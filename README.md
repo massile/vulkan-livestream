@@ -9,8 +9,8 @@ Current state
 - [X] Vertex attributes
 - [X] Uniforms
 - [X] Depth Buffers
+- [X] Texture
 - [ ] First refactoring
-- [ ] Textures
 
 ...
 
