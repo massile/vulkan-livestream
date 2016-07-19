@@ -498,8 +498,6 @@ void Vulkan::loadTexture(const std::string & filename)
 	memcpy(data, pixels, size_t(size));
 	vkUnmapMemory(device, hostImage);
 
-	vkBindImageMemory(device, hostImage, imageMemory, 0);
-
 	// LAYOUTS TRANSITION
 	VkImage deviceImage;
 	VkDeviceMemory deviceMemory;
@@ -579,14 +577,19 @@ uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
 
 void Vulkan::createDescriptorPool()
 {
-	VkDescriptorPoolSize descriptorPoolSize = {};
-	descriptorPoolSize.descriptorCount = 1;
-	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	VkDescriptorPoolSize uniformDescriptor = {};
+	uniformDescriptor.descriptorCount = 1;
+	uniformDescriptor.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 
+	VkDescriptorPoolSize samplerDescriptor = {};
+	samplerDescriptor.descriptorCount = 1;
+	samplerDescriptor.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+
+	VkDescriptorPoolSize descriptors[] = { uniformDescriptor, samplerDescriptor };
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
 	descriptorPoolInfo.maxSets = 1;
-	descriptorPoolInfo.poolSizeCount = 1;
-	descriptorPoolInfo.pPoolSizes = &descriptorPoolSize;
+	descriptorPoolInfo.poolSizeCount = 2;
+	descriptorPoolInfo.pPoolSizes = descriptors;
 	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 
 	VkResult res = vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool);
@@ -595,21 +598,28 @@ void Vulkan::createDescriptorPool()
 
 void Vulkan::setupDescriptorSets()
 {
-	VkDescriptorSetLayoutBinding binding = {};
-	binding.descriptorCount = 1;
-	binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	VkDescriptorSetLayoutBinding uniformBinding = {};
+	uniformBinding.descriptorCount = 1;
+	uniformBinding.binding = 0;
+	uniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+	VkDescriptorSetLayoutBinding samplerBinding = {};
+	samplerBinding.descriptorCount = 1;
+	samplerBinding.binding = 1;
+	samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT; // The texture is not needed per vertex
 
+	VkDescriptorSetLayoutBinding bindings[] = { uniformBinding, samplerBinding };
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {};
-	descriptorSetLayoutInfo.bindingCount = 1;
-	descriptorSetLayoutInfo.pBindings = &binding;
+	descriptorSetLayoutInfo.bindingCount = 2;
+	descriptorSetLayoutInfo.pBindings = bindings;
 	descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 
 	VkResult res = vkCreateDescriptorSetLayout(device, &descriptorSetLayoutInfo, nullptr, &descriptorSetLayout);
 	assert(res == VK_SUCCESS);
 
-	// Add a new descriptor using the descirptor pool
+	// Add a new descriptor using the descriptor pool
 	VkDescriptorSetAllocateInfo descriptorSetAllocInfo = {};
 	descriptorSetAllocInfo.descriptorPool = descriptorPool;
 	descriptorSetAllocInfo.descriptorSetCount = 1;
@@ -619,18 +629,33 @@ void Vulkan::setupDescriptorSets()
 	res = vkAllocateDescriptorSets(device, &descriptorSetAllocInfo, &descriptorSet);
 	assert(res == VK_SUCCESS);
 
+	VkDescriptorImageInfo textureDescriptor = {};
+	textureDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	textureDescriptor.imageView = texture.view;
+	textureDescriptor.sampler = texture.sampler;
+
 	// Match binding points to the descirptor set
 
 	// Binding : 0
-	VkWriteDescriptorSet writeDescriptorSet = {};
-	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDescriptorSet.descriptorCount = 1;
-	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeDescriptorSet.dstSet = descriptorSet;
-	writeDescriptorSet.pBufferInfo = &uniformDescriptor;
-	writeDescriptorSet.dstBinding = 0;
+	VkWriteDescriptorSet writeDescriptorSets[2];
+	writeDescriptorSets[0] = {};
+	writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSets[0].descriptorCount = 1;
+	writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeDescriptorSets[0].dstSet = descriptorSet;
+	writeDescriptorSets[0].pBufferInfo = &uniformDescriptor;
+	writeDescriptorSets[0].dstBinding = 0;
 
-	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
+	// Binding : 1
+	writeDescriptorSets[1] = {};
+	writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSets[1].descriptorCount = 1;
+	writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeDescriptorSets[1].dstSet = descriptorSet;
+	writeDescriptorSets[1].pImageInfo = &textureDescriptor;
+	writeDescriptorSets[1].dstBinding = 1;
+
+	vkUpdateDescriptorSets(device, 2, writeDescriptorSets, 0, nullptr);
  }
 
 void Vulkan::createSurface(GLFWwindow* window)
