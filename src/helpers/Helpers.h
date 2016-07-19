@@ -20,6 +20,8 @@ namespace vk {
 
 	void flushCommandBuffer(VkCommandBuffer& cmdBuffer, VkQueue graphicsQueue)
 	{
+		vkEndCommandBuffer(cmdBuffer);
+
 		VkSubmitInfo submitInfo = {};
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &cmdBuffer; // We want to send on the ith swapchain
@@ -62,6 +64,10 @@ namespace vk {
 		VkCommandBuffer cmdBuffer = createAndBeginCommandBuffer(flags, commandPool, device);
 
 		VkImageSubresourceLayers subResources = {};
+		subResources.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		subResources.baseArrayLayer = 0;
+		subResources.layerCount = 1;
+		subResources.mipLevel = 0;
 
 		VkImageCopy copy;
 		copy.dstOffset.x = 0;
@@ -86,6 +92,7 @@ namespace vk {
 		);
 
 		flushCommandBuffer(cmdBuffer, queue);
+		vkQueueWaitIdle(queue);
 		vkFreeCommandBuffers(device, commandPool, 1, &cmdBuffer);
 	}
 
@@ -136,6 +143,7 @@ namespace vk {
 		}
 		
 		flushCommandBuffer(cmdBuffer, queue);
+		vkQueueWaitIdle(queue);
 		vkFreeCommandBuffers(device, commandPool, 1, &cmdBuffer);
 	}
 
