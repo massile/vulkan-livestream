@@ -100,6 +100,7 @@ void Vulkan::init()
 	createCommandBuffers();
 
 	loadTexture("textures/test.jpg");
+	loadSampler();
 
 	findCompatibleDepthFormat();
 	createDepthBuffer();
@@ -517,6 +518,47 @@ void Vulkan::loadTexture(const std::string & filename)
 
 	vk::copyImage(graphicsQueue, hostImage, deviceImage, texWidth, texHeight, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, commandPool, device);
 	vk::changeImageLayout(graphicsQueue, deviceImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandPool, device);
+	
+	texture.width = texWidth;
+	texture.height = texHeight;
+	texture.memory = deviceMemory;
+	texture.image = deviceImage;
+}
+
+void Vulkan::loadSampler()
+{
+	// ACCESS THE IMAGE THROUGH THE VIEW
+	VkImageViewCreateInfo viewInfo = {};
+	viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.image = texture.image;
+
+	VkResult res = vkCreateImageView(device, &viewInfo, nullptr, &texture.view);
+	assert(res == VK_SUCCESS);
+
+	// CREATING THE SAMPLER
+	VkSamplerCreateInfo samplerInfo = {};
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.maxAnisotropy = 8;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+	res = vkCreateSampler(device, &samplerInfo, nullptr, &texture.sampler);
+	assert(res == VK_SUCCESS);
 }
 
 uint32_t Vulkan::getMemoryType(uint32_t typeBits, VkFlags properties)
@@ -894,6 +936,7 @@ void Vulkan::createFrameBuffers()
 Vulkan::~Vulkan()
 {
 	vkDeviceWaitIdle(device);
+	vkQueueWaitIdle(graphicsQueue);
 	
 	vkFreeMemory(device, indexMemory, nullptr);
 	vkFreeMemory(device, vertexMemory, nullptr);

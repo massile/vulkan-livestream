@@ -20,6 +20,15 @@ struct Uniforms {
 	glm::mat4 viewMatrix;
 };
 
+struct Texture {
+	VkDeviceMemory memory;
+	VkImage image;
+	VkImageView view;
+	VkSampler sampler;
+	int width;
+	int height;
+};
+
 class Vulkan
 {
 private:
@@ -73,6 +82,8 @@ private:
 	VkBuffer indexBuffer;
 	VkDeviceMemory indexMemory;
 
+	Texture texture;
+
 public:
 	static Vulkan app;
 
@@ -98,6 +109,7 @@ private:
 	void loadUniforms();
 
 	void loadTexture(const std::string& filename);
+	void loadSampler();
 
 	uint32_t getMemoryType(uint32_t typeBits, VkFlags properties);
 	void createDescriptorPool();
