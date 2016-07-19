@@ -11,6 +11,7 @@
 struct Vertex {
 	float position[3];
 	float color[3];
+	float uv[2];
 };
 
 // JUST FOR TESTING
