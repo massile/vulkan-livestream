@@ -18,7 +18,7 @@ Just by curiousity !
  - when ready, I moved on C++ and OpenGL to have a better understanding on how to create 3D engines...
  - and now, I'm trying to learn Vulkan to learn how the GPU and the OpenGL pipeline works.
 
-Newt time will probably be something like [Nvidia CUDA](http://www.nvidia.com/object/cuda_home_new.html).
+Next time will probably be something like [Nvidia CUDA](http://www.nvidia.com/object/cuda_home_new.html).
 
 Result
 -----
